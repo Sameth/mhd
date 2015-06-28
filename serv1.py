@@ -5,10 +5,27 @@ from time import strftime, localtime
 
 import cherrypy
 
+#Scoring constants
+OPTIMAL_TRANSFER = 5    #Lowest transfer time with no penalty
+c1 = 1                  #Weight of elapsed time
+c2 = 1                  #Weight of transfer count
+c3 = 1                  #Weight of short transfer time penalty
+e2 = 1.5                #Exponent of transfer count
+e3 = 2                  #Exponent of shortest transfer time
+
 all_stops = []
-day_regime = {'Denne':[0,1,2], 'Pracovné dni':[0,1], 'Voľné dni':[2], 'Pracovné dni (školský rok)':[0], 'Pracovné dni (školské prázdniny)':[1]}
+
+#Applicable in Bratislava:
+day_regime = {'Denne':[0,1,2], 'Pracovné dni':[0,1], 'Voľné dni':[2], 
+                'Pracovné dni (školský rok)':[0], 'Pracovné dni (školské prázdniny)':[1]}
 connections = []
 
+#Scoring function
+def score(time, transfers, shortest_transfer):
+    return c1 * time + c2 * transfers**e2 + c3 * max (OPTIMAL_TRANSFER - shortest_transfer, 0)**e3
+    
+
+#A base class for one line with direction.
 class Connection:
     def __init__(self, line, begin, stops, travel_times, departures):
         self.line = line
@@ -17,6 +34,7 @@ class Connection:
         self.travel_times = travel_times
         self.departures = departures
 
+#"Web server"
 class JourneyPlanner(object):
     @cherrypy.expose
     def index(self, orig='!', dest='', time=strftime("%H:%M", localtime())):
@@ -36,20 +54,22 @@ class JourneyPlanner(object):
 #            re.findall(r'\d+', 'hello 42 I\'m a 32 string 30');
             pass #aaa!
 
-
+#Helper function
 def numberize(x):
     try:
         return [int(x)]
     except:
         return []
 
+#The source intermixed different kinds of spaces
 def myreadline(f):
     line = f.readline()
     line = line.replace(u'\xa0', u' ')
     return line
 
+#Read timetable data from file
 def read_data():
-    f = FileInput(files=('../data.txt'))
+    f = FileInput(files=('data.txt'))
     current_line = myreadline(f)
     while (current_line != ''):
         origin_stop = myreadline(f)[:-1]
@@ -85,5 +105,4 @@ if __name__ == '__main__':
         if (stop != unique_stops[-1]):
             unique_stops.append(stop)
 
-    print(unique_stops)
     cherrypy.quickstart(JourneyPlanner())
