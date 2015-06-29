@@ -15,6 +15,8 @@ e3 = 2                  #Exponent of shortest transfer time
 
 all_stops = []
 
+stopXtime_lines = []
+
 #Applicable in Bratislava:
 day_regime = {'Denne':[0,1,2], 'Pracovné dni':[0,1], 'Voľné dni':[2], 
                 'Pracovné dni (školský rok)':[0], 'Pracovné dni (školské prázdniny)':[1]}
@@ -33,6 +35,9 @@ class Connection:
         self.stops = stops
         self.travel_times = travel_times
         self.departures = departures
+
+    def __str__(self):
+        return self.line
 
 #"Web server"
 class JourneyPlanner(object):
@@ -84,7 +89,7 @@ def read_data():
             current_time = myreadline(f)
 
         tables = int(myreadline(f)[:-1])
-        departures = [[False]*3600]*3
+        departures = [[False for i in range(3600)]for j in range(3)]
         for i in range(tables):
             mode = day_regime[myreadline(f)[:-1]]
             hours = int(myreadline(f)[:-1])
@@ -92,7 +97,7 @@ def read_data():
                 numbers = myreadline(f).split()
                 for k in functools.reduce(lambda x, y: x+numberize(y),numbers[1:], []):
                     for l in mode:
-                        departures [l] [int(numbers[0])] = True
+                        departures [l] [int(numbers[0])*60 + k] = True
 
         connections.append(Connection(current_line[:-1], origin_stop, stops, travel_times, departures))
         current_line = myreadline(f)
@@ -104,5 +109,17 @@ if __name__ == '__main__':
     for stop in all_stops:
         if (stop != unique_stops[-1]):
             unique_stops.append(stop)
+
+    stopXtime_lines = [[[[] for i in range(3600)] for j in range(3) ] for k in range(len(unique_stops) + 4)]
+
+    for num in range(len(connections)):
+        conn = connections[num]
+        mystops = [conn.begin]+conn.stops
+        mytimes = [0]+conn.travel_times
+        for i in range(len(mystops)):
+            for j in range (3):
+                for k in range(3600):
+                    if (conn.departures[j][k]):
+                        stopXtime_lines[unique_stops.index(mystops[i])][j][(k + mytimes[i])%3600].append(num)
 
     cherrypy.quickstart(JourneyPlanner())
