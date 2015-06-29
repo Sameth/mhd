@@ -13,7 +13,20 @@ c3 = 1                  #Weight of short transfer time penalty
 e2 = 1.5                #Exponent of transfer count
 e3 = 2                  #Exponent of shortest transfer time
 
+basepage =   '''<html>
+                    <head></head>
+                    <body>
+                    <form method="get" action="index">
+                        <input type="text" value="" name="orig">
+                        <input type="text" value="" name="dest">
+                        <input type="text" value="''' + time + '''" name="time">
+                        <button type="submit">Vyhladaj spojenie</button>
+                    </form>
+                    </body>
+                </html>'''
+
 all_stops = []
+unique_stops = []
 
 stopXtime_lines = []
 
@@ -39,25 +52,26 @@ class Connection:
     def __str__(self):
         return self.line
 
+def find(orig, dest, time):
+    
+
 #"Web server"
 class JourneyPlanner(object):
     @cherrypy.expose
     def index(self, orig='!', dest='', time=strftime("%H:%M", localtime())):
-        if (orig == '!'):
-            return '''<html>
-                      <head></head>
-                      <body>
-                        <form method="get" action="index">
-                          <input type="text" value="" name="orig">
-                          <input type="text" value="" name="dest">
-                          <input type="text" value="''' + time + '''" name="time">
-                          <button type="submit">Vyhladaj spojenie</button>
-                        </form>
-                      </body>
-                    </html>'''
+        if (orig == '!') or orig == dest:
+            return basepage
+
         else:
-#            re.findall(r'\d+', 'hello 42 I\'m a 32 string 30');
-            pass #aaa!
+            orig = orig.replace(u'\xa0', u' ')
+            dest = dest.replace(u'\xa0', u' ')
+            help1 = re.findall(r'\d+', time);
+            time_minutes = help1[0]*60 + help1[1]
+            if (time_minutes >= 3600):
+                return basepage
+
+            find(unique_stops.find(orig), unique_stops.find(dest), help1)
+
 
 #Helper function
 def numberize(x):
