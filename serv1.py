@@ -3,6 +3,7 @@ import functools
 from fileinput import FileInput
 from time import strftime, localtime
 from queue import PriorityQueue
+import re
 
 import cherrypy
 
@@ -71,30 +72,33 @@ class Journey:
 #TODO: pridat presunutie sa na dalsiu minutu z daneho stavu!
 #The actual code that does something, Dijkstra algorithm.
 def find(orig, dest, time, day = 0):
-    result = []
-    bestscore = [[1000000000000000000 for i in range(3600)] for j in range(len(unique_stops) + 4)]
-    printed = 0;
-    ends = PriorityQueue()
-    ends.put((0, orig, des, time, Journey(), 0, 0, OPTIMAL_TRANSFER))
-    while (not (ends.empty)) and printed < to_print:
-        my = ends.get()
-        for linenum in stopXtime_lines [my[1]][day][time]:
-            startindex = connections[linenum].index(unique_stops[my[1]]);
-            for i in range(startindex, len(connections[linenum].stops)):
-                for j in range(OPTIMAL_TRANSFER + 1):
-                    difftime = connections[linenum].travel_time[i] - connections[linenum].travel_time[startindex]
-                    nexttime = my[5] + difftime
-                    nexttransfers = my[6] + 1
-                    nextshortest = min(my[7], j)
-                    price = score(nexttime, nexttransfers, nextshortest) #Tu dalej sa to cele pokazi!
-                    if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%3600]):
-                        if (unique_stops[dest] == connections [linenum].stops[i]):
-                            result.append(my[4])
-                        else :
-                            bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% 3600] = price
-                            ends.put((price, unique_stops.index(connections[linenum].stops[i]), des, time + difftime,
-                            Journey(lines = my[4].lines).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
-                            nexttransfers, nextshortest))
+    try:
+        result = []
+        bestscore = [[1000000000000000000 for i in range(3600)] for j in range(len(unique_stops) + 4)]
+        printed = 0;
+        ends = PriorityQueue()
+        ends.put((0, orig, dest, time, Journey(), 0, 0, OPTIMAL_TRANSFER))
+        while (not (ends.empty)) and printed < to_print:
+            my = ends.get()
+            for linenum in stopXtime_lines [my[1]][day][time]:
+                startindex = connections[linenum].index(unique_stops[my[1]]);
+                for i in range(startindex, len(connections[linenum].stops)):
+                    for j in range(OPTIMAL_TRANSFER + 1):
+                        difftime = connections[linenum].travel_time[i] - connections[linenum].travel_time[startindex]
+                        nexttime = my[5] + difftime
+                        nexttransfers = my[6] + 1
+                        nextshortest = min(my[7], j)
+                        price = score(nexttime, nexttransfers, nextshortest) #Tu dalej sa to cele pokazi!
+                        if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%3600]):
+                            if (unique_stops[dest] == connections [linenum].stops[i]):
+                                result.append(my[4])
+                            else :
+                                bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% 3600] = price
+                                ends.put((price, unique_stops.index(connections[linenum].stops[i]), des, time + difftime,
+                                Journey(lines = my[4].lines).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
+                                nexttransfers, nextshortest))
+    except Exception as e:
+        print(e)
 
 #"Web server"
 class JourneyPlanner(object):
@@ -104,17 +108,17 @@ class JourneyPlanner(object):
             return basepage(time, '', '')
 
         else:
-            try:
+            #try:
                 orig = orig.replace(u'\xa0', u' ')
                 dest = dest.replace(u'\xa0', u' ')
                 help1 = re.findall(r'\d+', time);
-                time_minutes = help1[0]*60 + help1[1]
+                time_minutes = int(help1[0])*60 + int(help1[1])
                 if (time_minutes >= 3600):
                     return basepage(time, "Incorrect time", '')
 
-                find(unique_stops.find(orig), unique_stops.find(dest), help1)
-            except:
-                return basepage(time, "Incorrect station(s)", '')
+                find(unique_stops.index(orig), unique_stops.index(dest), help1)
+            #except:
+                return basepage(time, "Aaaa!", '')
 
 
 #Helper function
