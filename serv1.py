@@ -106,7 +106,7 @@ def find(orig, dest, time, day = 0):
             #if (my[4] == None):
 #            print(my)
 #            print(my[1], day, my[3])
-            for linenum in stopXtime_lines [my[1]][day][my[3]]:
+            for linenum in stopXtime_lines [my[1]][day][my[3] % daylength]:
 #                print(linenum)
                 startindex = connections[linenum].stops.index(unique_stops[my[1]]);
                 for i in range(startindex + 1, len(connections[linenum].stops)):
