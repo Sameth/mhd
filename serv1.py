@@ -4,7 +4,7 @@ from fileinput import FileInput
 from time import strftime, localtime
 from queue import PriorityQueue
 import re
-
+import traceback
 import cherrypy
 
 #Scoring constants
@@ -14,7 +14,8 @@ c2 = 1                  #Weight of transfer count
 c3 = 1                  #Weight of short transfer time penalty
 e2 = 1.5                #Exponent of transfer count
 e3 = 2                  #Exponent of shortest transfer time
-to_print = 5
+to_print = 5            #Number of connections to print
+daylength = 1440        #Number of minutes in a day
 
 def basepage(time, message, connections):
     return   '''<html>
@@ -56,7 +57,9 @@ class Connection:
         self.departures = departures
 
     def __str__(self):
-        return self.line
+        return str(self.line)
+
+        
 
 #Class describing whole journey.
 class Journey:
@@ -65,40 +68,70 @@ class Journey:
 
     def add(self, orig, origtime, dest, desttime, line):
         self.lines.append((orig, origtime, dest, desttime, line))
+        return self
 
     def __str__(self):
-        pass
+        return str(self.lines)
+
+    def __repr__(self):
+        return str(self.lines)
+
+    def __lt__(self, other):
+        return False
+
+    def __le__(self, other):
+        return True
+
+    def __gt__(self, other):
+        return False
+
+    def __ge__(self, other):
+        return True
+
+    def __eq__(self, other):
+        return True
 
 #TODO: pridat presunutie sa na dalsiu minutu z daneho stavu!
 #The actual code that does something, Dijkstra algorithm.
 def find(orig, dest, time, day = 0):
     try:
         result = []
-        bestscore = [[1000000000000000000 for i in range(3600)] for j in range(len(unique_stops) + 4)]
+        bestscore = [[1000000000000000000 for i in range(daylength)] for j in range(len(unique_stops) + 4)]
         printed = 0;
         ends = PriorityQueue()
         ends.put((0, orig, dest, time, Journey(), 0, 0, OPTIMAL_TRANSFER))
-        while (not (ends.empty)) and printed < to_print:
+        while (not (ends.empty())) and printed < to_print:
+#            print("iterujem!")
             my = ends.get()
-            for linenum in stopXtime_lines [my[1]][day][time]:
-                startindex = connections[linenum].index(unique_stops[my[1]]);
-                for i in range(startindex, len(connections[linenum].stops)):
+            #if (my[4] == None):
+#            print(my)
+#            print(my[1], day, my[3])
+            for linenum in stopXtime_lines [my[1]][day][my[3]]:
+#                print(linenum)
+                startindex = connections[linenum].stops.index(unique_stops[my[1]]);
+                for i in range(startindex + 1, len(connections[linenum].stops)):
                     for j in range(OPTIMAL_TRANSFER + 1):
-                        difftime = connections[linenum].travel_time[i] - connections[linenum].travel_time[startindex]
+                        difftime = connections[linenum].travel_times[i] - connections[linenum].travel_times[startindex] + j
                         nexttime = my[5] + difftime
                         nexttransfers = my[6] + 1
                         nextshortest = min(my[7], j)
                         price = score(nexttime, nexttransfers, nextshortest) #Tu dalej sa to cele pokazi!
-                        if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%3600]):
-                            if (unique_stops[dest] == connections [linenum].stops[i]):
-                                result.append(my[4])
+                        if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%daylength]):
+                            if (unique_stops[dest] == connections [linenum].stops[i]) and (j == 0):
+                                result.append(Journey(lines=list(my[4].lines)).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections [linenum].line))
+                                printed += 1
                             else :
-                                bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% 3600] = price
-                                ends.put((price, unique_stops.index(connections[linenum].stops[i]), des, time + difftime,
-                                Journey(lines = my[4].lines).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
+                                bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% daylength] = price
+                                ends.put((price, unique_stops.index(connections[linenum].stops[i]), dest, time + difftime,
+                                Journey(lines = list(my[4].lines)).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
                                 nexttransfers, nextshortest))
+
+            if (my[0] + 1 < bestscore [my[1]][(my[3]+1) % daylength]):
+                bestscore [my[1]][(my[3] + 1) % daylength] = my[0] + 1;
+                ends.put((my[0] + 1, my[1], my[2], my[3] + 1, my[4], my[5], my[6], my[7]))
+        return result
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
 #"Web server"
 class JourneyPlanner(object):
@@ -113,10 +146,11 @@ class JourneyPlanner(object):
                 dest = dest.replace(u'\xa0', u' ')
                 help1 = re.findall(r'\d+', time);
                 time_minutes = int(help1[0])*60 + int(help1[1])
-                if (time_minutes >= 3600):
+                if (time_minutes >= daylength):
                     return basepage(time, "Incorrect time", '')
 
-                find(unique_stops.index(orig), unique_stops.index(dest), help1)
+                magic = find(unique_stops.index(orig), unique_stops.index(dest), time_minutes)
+                return basepage(time, '', str(magic))
             #except:
                 return basepage(time, "Aaaa!", '')
 
@@ -151,7 +185,7 @@ def read_data():
             current_time = myreadline(f)
 
         tables = int(myreadline(f)[:-1])
-        departures = [[False for i in range(3600)]for j in range(3)]
+        departures = [[False for i in range(daylength)]for j in range(3)]
         for i in range(tables):
             mode = day_regime[myreadline(f)[:-1]]
             hours = int(myreadline(f)[:-1])
@@ -172,7 +206,7 @@ if __name__ == '__main__':
         if (stop != unique_stops[-1]):
             unique_stops.append(stop)
 
-    stopXtime_lines = [[[[] for i in range(3600)] for j in range(3) ] for k in range(len(unique_stops) + 4)]
+    stopXtime_lines = [[[[] for i in range(daylength)] for j in range(3) ] for k in range(len(unique_stops) + 4)]
 
     for num in range(len(connections)):
         conn = connections[num]
@@ -180,8 +214,8 @@ if __name__ == '__main__':
         mytimes = conn.travel_times
         for i in range(len(mystops)):
             for j in range (3):
-                for k in range(3600):
+                for k in range(daylength):
                     if (conn.departures[j][k]):
-                        stopXtime_lines[unique_stops.index(mystops[i])][j][(k + mytimes[i])%3600].append(num)
+                        stopXtime_lines[unique_stops.index(mystops[i])][j][(k + mytimes[i])%daylength].append(num)
 
     cherrypy.quickstart(JourneyPlanner())
