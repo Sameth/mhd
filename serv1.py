@@ -2,6 +2,7 @@ import string
 import functools
 from fileinput import FileInput
 from time import strftime, localtime
+from queue import PriorityQueue
 
 import cherrypy
 
@@ -12,16 +13,20 @@ c2 = 1                  #Weight of transfer count
 c3 = 1                  #Weight of short transfer time penalty
 e2 = 1.5                #Exponent of transfer count
 e3 = 2                  #Exponent of shortest transfer time
+to_print = 5
 
-basepage =   '''<html>
+def basepage(time, message, connections):
+    return   '''<html>
                     <head></head>
                     <body>
+                    <p> ''' + message + '''</p>
                     <form method="get" action="index">
                         <input type="text" value="" name="orig">
                         <input type="text" value="" name="dest">
                         <input type="text" value="''' + time + '''" name="time">
                         <button type="submit">Vyhladaj spojenie</button>
                     </form>
+                    ''' + connections + '''
                     </body>
                 </html>'''
 
@@ -52,25 +57,64 @@ class Connection:
     def __str__(self):
         return self.line
 
-def find(orig, dest, time):
-    
+#Class describing whole journey.
+class Journey:
+    def __init__(self, lines = []):
+        self.lines = lines
+
+    def add(self, orig, origtime, dest, desttime, line):
+        self.lines.append((orig, origtime, dest, desttime, line))
+
+    def __str__(self):
+        pass
+
+#TODO: pridat presunutie sa na dalsiu minutu z daneho stavu!
+#The actual code that does something, Dijkstra algorithm.
+def find(orig, dest, time, day = 0):
+    result = []
+    bestscore = [[1000000000000000000 for i in range(3600)] for j in range(len(unique_stops) + 4)]
+    printed = 0;
+    ends = PriorityQueue()
+    ends.put((0, orig, des, time, Journey(), 0, 0, OPTIMAL_TRANSFER))
+    while (not (ends.empty)) and printed < to_print:
+        my = ends.get()
+        for linenum in stopXtime_lines [my[1]][day][time]:
+            startindex = connections[linenum].index(unique_stops[my[1]]);
+            for i in range(startindex, len(connections[linenum].stops)):
+                for j in range(OPTIMAL_TRANSFER + 1):
+                    difftime = connections[linenum].travel_time[i] - connections[linenum].travel_time[startindex]
+                    nexttime = my[5] + difftime
+                    nexttransfers = my[6] + 1
+                    nextshortest = min(my[7], j)
+                    price = score(nexttime, nexttransfers, nextshortest) #Tu dalej sa to cele pokazi!
+                    if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%3600]):
+                        if (unique_stops[dest] == connections [linenum].stops[i]):
+                            result.append(my[4])
+                        else :
+                            bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% 3600] = price
+                            ends.put((price, unique_stops.index(connections[linenum].stops[i]), des, time + difftime,
+                            Journey(lines = my[4].lines).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
+                            nexttransfers, nextshortest))
 
 #"Web server"
 class JourneyPlanner(object):
     @cherrypy.expose
     def index(self, orig='!', dest='', time=strftime("%H:%M", localtime())):
         if (orig == '!') or orig == dest:
-            return basepage
+            return basepage(time, '', '')
 
         else:
-            orig = orig.replace(u'\xa0', u' ')
-            dest = dest.replace(u'\xa0', u' ')
-            help1 = re.findall(r'\d+', time);
-            time_minutes = help1[0]*60 + help1[1]
-            if (time_minutes >= 3600):
-                return basepage
+            try:
+                orig = orig.replace(u'\xa0', u' ')
+                dest = dest.replace(u'\xa0', u' ')
+                help1 = re.findall(r'\d+', time);
+                time_minutes = help1[0]*60 + help1[1]
+                if (time_minutes >= 3600):
+                    return basepage(time, "Incorrect time", '')
 
-            find(unique_stops.find(orig), unique_stops.find(dest), help1)
+                find(unique_stops.find(orig), unique_stops.find(dest), help1)
+            except:
+                return basepage(time, "Incorrect station(s)", '')
 
 
 #Helper function
@@ -93,8 +137,8 @@ def read_data():
     while (current_line != ''):
         origin_stop = myreadline(f)[:-1]
         all_stops.append(origin_stop)
-        stops = []
-        travel_times = []
+        stops = [origin_stop]
+        travel_times = [0]
         current_time = myreadline(f)
         while (current_time != '\n'):
             travel_times.append(int(current_time[:-1]))
@@ -128,8 +172,8 @@ if __name__ == '__main__':
 
     for num in range(len(connections)):
         conn = connections[num]
-        mystops = [conn.begin]+conn.stops
-        mytimes = [0]+conn.travel_times
+        mystops = conn.stops
+        mytimes = conn.travel_times
         for i in range(len(mystops)):
             for j in range (3):
                 for k in range(3600):
