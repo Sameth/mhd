@@ -131,7 +131,7 @@ def find(orig, dest, time, day = 0):
 #            print("iterujem!")
             my = ends.get()
             #if (my[4] == None):
-            print(my)
+#            print(my)
 #            print(my[1], day, my[3])
             for linenum in stopXtime_lines [my[1]][day][my[3] % daylength]:
 #                print(linenum)
@@ -184,7 +184,7 @@ class JourneyPlanner(object):
             return basepage(time, '', '')
 
         else:
-            #try:
+            try:
                 orig = orig.replace(u'\xa0', u' ')
                 dest = dest.replace(u'\xa0', u' ')
                 help1 = re.findall(r'\d+', time);
@@ -194,8 +194,8 @@ class JourneyPlanner(object):
 
                 magic = find(unique_stops.index(orig), unique_stops.index(dest), time_minutes)
                 return basepage(time, '', generate_output(magic))
-            #except:
-                return basepage(time, "Aaaa!", '')
+            except:
+                return basepage(time, "Incorrect stop (probably)", '')
 
 
 #Helper function
