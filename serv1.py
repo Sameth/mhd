@@ -18,8 +18,23 @@ to_print = 5            #Number of connections to print
 daylength = 1440        #Number of minutes in a day
 
 def basepage(time, message, connections):
-    return   '''<html>
-                    <head></head>
+    return   '''<!DOCTYPE html>
+                <html>
+                    <head>
+                    <style>
+                    .t01 tr:nth-child(even) {
+                        background-color: #eee;
+                    }
+                    table#t01 tr:nth-child(odd) {
+                        background-color:#fff;
+                    }
+                    .t01 th{
+                        background-color: black;
+                        color: white;
+                    }
+                    </style>
+                    </head>
+                                                       
                     <body>
                     <p> ''' + message + '''</p>
                     <form method="get" action="index">
@@ -91,6 +106,18 @@ class Journey:
     def __eq__(self, other):
         return True
 
+    def formatted(self):
+        toreturn = ""
+        for tup in self.lines:
+            toreturn += """<tr>
+                         <td>""" + tup[4] + """
+                         <td>""" + tup[0] + ' ' + "%02d:%02d" % ((tup[1] % daylength) // 60, tup[1] % 60) + """</td>
+                         <td>""" + tup[2] + ' ' + "%02d:%02d" % ((tup[3] % daylength) // 60, tup[3] % 60) + """</td>
+                        </tr>
+                        """
+
+        return toreturn
+
 #TODO: pridat presunutie sa na dalsiu minutu z daneho stavu!
 #The actual code that does something, Dijkstra algorithm.
 def find(orig, dest, time, day = 0):
@@ -104,7 +131,7 @@ def find(orig, dest, time, day = 0):
 #            print("iterujem!")
             my = ends.get()
             #if (my[4] == None):
-#            print(my)
+            print(my)
 #            print(my[1], day, my[3])
             for linenum in stopXtime_lines [my[1]][day][my[3] % daylength]:
 #                print(linenum)
@@ -118,12 +145,12 @@ def find(orig, dest, time, day = 0):
                         price = score(nexttime, nexttransfers, nextshortest) #Tu dalej sa to cele pokazi!
                         if (price < bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)%daylength]):
                             if (unique_stops[dest] == connections [linenum].stops[i]) and (j == 0):
-                                result.append(Journey(lines=list(my[4].lines)).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections [linenum].line))
+                                result.append(Journey(lines=list(my[4].lines)).add(unique_stops[my[1]], my[3], connections[linenum].stops[i], my[3] + difftime, connections [linenum].line))
                                 printed += 1
                             else :
                                 bestscore [unique_stops.index(connections[linenum].stops[i])][(my[3] + difftime)% daylength] = price
-                                ends.put((price, unique_stops.index(connections[linenum].stops[i]), dest, time + difftime,
-                                Journey(lines = list(my[4].lines)).add(unique_stops[orig], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
+                                ends.put((price, unique_stops.index(connections[linenum].stops[i]), dest, my[3] + difftime,
+                                Journey(lines = list(my[4].lines)).add(unique_stops[my[1]], my[3], connections[linenum].stops[i], my[3] + difftime, connections[linenum].line), nexttime,
                                 nexttransfers, nextshortest))
 
             if (my[0] + 1 < bestscore [my[1]][(my[3]+1) % daylength]):
@@ -132,6 +159,22 @@ def find(orig, dest, time, day = 0):
         return result
     except Exception as e:
         traceback.print_exc()
+
+def generate_output(journeys):
+    output = """<table border="1">
+    """
+
+    for journey in journeys:
+        output += """<tr><td>
+                        <table class="t01">
+                        """
+        output += journey.formatted()
+        output += """   </table>
+                    </td></tr>
+                    """
+
+    output += "</table>"
+    return output
 
 #"Web server"
 class JourneyPlanner(object):
@@ -150,7 +193,7 @@ class JourneyPlanner(object):
                     return basepage(time, "Incorrect time", '')
 
                 magic = find(unique_stops.index(orig), unique_stops.index(dest), time_minutes)
-                return basepage(time, '', str(magic))
+                return basepage(time, '', generate_output(magic))
             #except:
                 return basepage(time, "Aaaa!", '')
 
